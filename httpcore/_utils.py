@@ -15,7 +15,7 @@ else:
 
     _SupportsAcloseT = TypeVar("_SupportsAcloseT", bound=_SupportsAclose)
 
-    class aclosing(AbstractAsyncContextManager[_SupportsAcloseT, None]):
+    class aclosing(AbstractAsyncContextManager):
         def __init__(self, thing: _SupportsAcloseT) -> None:
             self.thing = thing
 
