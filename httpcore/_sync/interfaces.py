@@ -57,7 +57,7 @@ class RequestInterface:
         url: URL | bytes | str,
         *,
         headers: HeaderTypes = None,
-        content: bytes | Generator[bytes] | None = None,
+        content: bytes | typing.Iterator[bytes] | None = None,
         extensions: Extensions | None = None,
     ) -> Generator[Response]:
         # Strict type checking on our parameters.
