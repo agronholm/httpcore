@@ -5,6 +5,8 @@ import ssl
 import typing
 import urllib.parse
 from collections.abc import AsyncGenerator
+from contextlib import AsyncExitStack
+from inspect import isasyncgen
 
 from ._utils import aclosing
 
@@ -483,8 +485,11 @@ class Response:
                 "more than once."
             )
         self._stream_consumed = True
-        async with aclosing(self.stream) as parts:
-            async for chunk in parts:
+        async with AsyncExitStack() as stack:
+            if isasyncgen(self.stream):
+                stack.push_async_callback(self.stream.aclose)
+
+            async for chunk in self.stream:
                 yield chunk
 
     async def aclose(self) -> None:

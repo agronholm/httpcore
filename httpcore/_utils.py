@@ -8,15 +8,21 @@ if sys.version_info >= (3, 10):
     from contextlib import aclosing as aclosing
 else:
     from contextlib import AbstractAsyncContextManager
+    from typing import Any, Awaitable, Protocol, TypeVar
 
-    class aclosing(AbstractAsyncContextManager):
-        def __init__(self, thing):
+    class _SupportsAclose(Protocol):
+        def aclose(self) -> Awaitable[object]: ...
+
+    _SupportsAcloseT = TypeVar("_SupportsAcloseT", bound=_SupportsAclose)
+
+    class aclosing(AbstractAsyncContextManager[_SupportsAcloseT, None]):
+        def __init__(self, thing: _SupportsAcloseT) -> None:
             self.thing = thing
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> _SupportsAcloseT:
             return self.thing
 
-        async def __aexit__(self, *exc_info):
+        async def __aexit__(self, *exc_info: Any) -> None:
             await self.thing.aclose()
 
 

@@ -5,19 +5,15 @@ import sys
 import types
 import typing
 from collections.abc import AsyncGenerator
+from contextlib import AsyncExitStack
 
 from .._backends.auto import AutoBackend
 from .._backends.base import SOCKET_OPTION, AsyncNetworkBackend
 from .._exceptions import ConnectionNotAvailable, UnsupportedProtocol
 from .._models import Origin, Proxy, Request, Response
 from .._synchronization import AsyncEvent, AsyncShieldCancellation, AsyncThreadLock
-from .._utils import aclosing
 from .connection import AsyncHTTPConnection
 from .interfaces import AsyncConnectionInterface, AsyncRequestInterface
-
-if typing.TYPE_CHECKING:
-    from .http2 import HTTP2ConnectionByteStream
-    from .http11 import HTTP11ConnectionByteStream
 
 
 class AsyncPoolRequest:
@@ -395,7 +391,7 @@ class AsyncConnectionPool(AsyncRequestInterface):
 class PoolByteStream:
     def __init__(
         self,
-        stream: HTTP11ConnectionByteStream | HTTP2ConnectionByteStream,
+        stream: typing.AsyncIterable[bytes],
         pool_request: AsyncPoolRequest,
         pool: AsyncConnectionPool,
     ) -> None:
@@ -405,7 +401,11 @@ class PoolByteStream:
         self._closed = False
 
     async def __aiter__(self) -> AsyncGenerator[bytes]:
-        async with aclosing(self._stream.__aiter__()) as iterator:
+        async with AsyncExitStack() as stack:
+            iterator = self._stream.__aiter__()
+            if hasattr(iterator, "aclose"):
+                stack.push_async_callback(iterator.aclose)
+
             async for chunk in iterator:
                 yield chunk
 
@@ -413,7 +413,8 @@ class PoolByteStream:
         if not self._closed:
             self._closed = True
             with AsyncShieldCancellation():
-                await self._stream.aclose()
+                if hasattr(self._stream, "aclose"):
+                    await self._stream.aclose()
 
             with self._pool._optional_thread_lock:
                 self._pool._requests.remove(self._pool_request)
