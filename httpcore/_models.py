@@ -486,10 +486,11 @@ class Response:
             )
         self._stream_consumed = True
         async with AsyncExitStack() as stack:
-            if isasyncgen(self.stream):
-                stack.push_async_callback(self.stream.aclose)
+            iterator = self.stream.__aiter__()
+            if isasyncgen(iterator):
+                stack.push_async_callback(iterator.aclose)
 
-            async for chunk in self.stream:
+            async for chunk in iterator:
                 yield chunk
 
     async def aclose(self) -> None:

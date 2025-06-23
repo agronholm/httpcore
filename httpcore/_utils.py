@@ -4,9 +4,9 @@ import select
 import socket
 import sys
 
-if sys.version_info >= (3, 10):
+if sys.version_info >= (3, 10):  # pragma: no cover
     from contextlib import aclosing as aclosing
-else:
+else:  # pragma: no cover
     from contextlib import AbstractAsyncContextManager
     from typing import Any, Awaitable, Protocol, TypeVar
 
