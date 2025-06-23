@@ -6,6 +6,7 @@ import ssl
 import time
 import types
 import typing
+from collections.abc import Generator
 
 import h11
 
@@ -20,6 +21,7 @@ from .._exceptions import (
 from .._models import Origin, Request, Response
 from .._synchronization import Lock, ShieldCancellation
 from .._trace import Trace
+from contextlib import closing
 from .interfaces import ConnectionInterface
 
 logger = logging.getLogger("httpcore.http11")
@@ -193,9 +195,7 @@ class HTTP11Connection(ConnectionInterface):
 
         return http_version, event.status_code, event.reason, headers, trailing_data
 
-    def _receive_response_body(
-        self, request: Request
-    ) -> typing.Iterator[bytes]:
+    def _receive_response_body(self, request: Request) -> Generator[bytes]:
         timeouts = request.extensions.get("timeout", {})
         timeout = timeouts.get("read", None)
 
@@ -327,12 +327,15 @@ class HTTP11ConnectionByteStream:
         self._request = request
         self._closed = False
 
-    def __iter__(self) -> typing.Iterator[bytes]:
+    def __iter__(self) -> Generator[bytes]:
         kwargs = {"request": self._request}
         try:
             with Trace("receive_response_body", logger, self._request, kwargs):
-                for chunk in self._connection._receive_response_body(**kwargs):
-                    yield chunk
+                with closing(
+                    self._connection._receive_response_body(**kwargs)
+                ) as body:
+                    for chunk in body:
+                        yield chunk
         except BaseException as exc:
             # If we get an exception while streaming the response,
             # we want to close the response (and possibly the connection)

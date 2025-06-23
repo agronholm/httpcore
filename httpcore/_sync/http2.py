@@ -5,6 +5,7 @@ import logging
 import time
 import types
 import typing
+from collections.abc import Generator
 
 import h2.config
 import h2.connection
@@ -308,7 +309,7 @@ class HTTP2Connection(ConnectionInterface):
 
     def _receive_response_body(
         self, request: Request, stream_id: int
-    ) -> typing.Iterator[bytes]:
+    ) -> Generator[bytes]:
         """
         Iterator that returns the bytes of the response body for a given stream ID.
         """
@@ -568,7 +569,7 @@ class HTTP2ConnectionByteStream:
         self._stream_id = stream_id
         self._closed = False
 
-    def __iter__(self) -> typing.Iterator[bytes]:
+    def __iter__(self) -> Generator[bytes]:
         kwargs = {"request": self._request, "stream_id": self._stream_id}
         try:
             with Trace("receive_response_body", logger, self._request, kwargs):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import typing
+from collections.abc import Generator
 
 from .._models import (
     URL,
@@ -56,9 +57,9 @@ class RequestInterface:
         url: URL | bytes | str,
         *,
         headers: HeaderTypes = None,
-        content: bytes | typing.Iterator[bytes] | None = None,
+        content: bytes | Generator[bytes] | None = None,
         extensions: Extensions | None = None,
-    ) -> typing.Iterator[Response]:
+    ) -> Generator[Response]:
         # Strict type checking on our parameters.
         method = enforce_bytes(method, name="method")
         url = enforce_url(url, name="url")
