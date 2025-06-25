@@ -6,6 +6,8 @@ import time
 import types
 import typing
 from collections.abc import AsyncGenerator
+from contextlib import AsyncExitStack
+from inspect import isasyncgen
 
 import h2.config
 import h2.connection
@@ -22,6 +24,7 @@ from .._exceptions import (
 from .._models import Origin, Request, Response
 from .._synchronization import AsyncLock, AsyncSemaphore, AsyncShieldCancellation
 from .._trace import Trace
+from .._utils import aclosing
 from .interfaces import AsyncConnectionInterface
 
 logger = logging.getLogger("httpcore.http2")
@@ -259,8 +262,14 @@ class AsyncHTTP2Connection(AsyncConnectionInterface):
             return
 
         assert isinstance(request.stream, typing.AsyncIterable)
-        async for data in request.stream:
-            await self._send_stream_data(request, stream_id, data)
+        async with AsyncExitStack() as stack:
+            iterator = request.stream.__aiter__()
+            if isasyncgen(iterator):
+                stack.push_async_callback(iterator.aclose)
+
+            async for chunk in iterator:
+                await self._send_stream_data(request, stream_id, chunk)
+
         await self._send_end_stream(request, stream_id)
 
     async def _send_stream_data(
@@ -573,10 +582,13 @@ class HTTP2ConnectionByteStream:
         kwargs = {"request": self._request, "stream_id": self._stream_id}
         try:
             async with Trace("receive_response_body", logger, self._request, kwargs):
-                async for chunk in self._connection._receive_response_body(
-                    request=self._request, stream_id=self._stream_id
-                ):
-                    yield chunk
+                async with aclosing(
+                    self._connection._receive_response_body(
+                        request=self._request, stream_id=self._stream_id
+                    )
+                ) as iterator:
+                    async for chunk in iterator:
+                        yield chunk
         except BaseException as exc:
             # If we get an exception while streaming the response,
             # we want to close the response (and possibly the connection)

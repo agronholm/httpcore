@@ -7,6 +7,8 @@ import time
 import types
 import typing
 from collections.abc import AsyncGenerator
+from contextlib import AsyncExitStack
+from inspect import isasyncgen
 
 import h11
 
@@ -156,9 +158,14 @@ class AsyncHTTP11Connection(AsyncConnectionInterface):
         timeout = timeouts.get("write", None)
 
         assert isinstance(request.stream, typing.AsyncIterable)
-        async for chunk in request.stream:
-            event = h11.Data(data=chunk)
-            await self._send_event(event, timeout=timeout)
+        async with AsyncExitStack() as stack:
+            iterator = request.stream.__aiter__()
+            if isasyncgen(iterator):
+                stack.push_async_callback(iterator.aclose)
+
+            async for chunk in iterator:
+                event = h11.Data(data=chunk)
+                await self._send_event(event, timeout=timeout)
 
         await self._send_event(h11.EndOfMessage(), timeout=timeout)
 
@@ -333,8 +340,8 @@ class HTTP11ConnectionByteStream:
             async with Trace("receive_response_body", logger, self._request, kwargs):
                 async with aclosing(
                     self._connection._receive_response_body(**kwargs)
-                ) as body:
-                    async for chunk in body:
+                ) as iterator:
+                    async for chunk in iterator:
                         yield chunk
         except BaseException as exc:
             # If we get an exception while streaming the response,
