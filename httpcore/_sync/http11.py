@@ -7,6 +7,8 @@ import time
 import types
 import typing
 from collections.abc import Generator
+from contextlib import ExitStack
+from inspect import isasyncgen
 
 import h11
 
@@ -156,9 +158,14 @@ class HTTP11Connection(ConnectionInterface):
         timeout = timeouts.get("write", None)
 
         assert isinstance(request.stream, typing.Iterable)
-        for chunk in request.stream:
-            event = h11.Data(data=chunk)
-            self._send_event(event, timeout=timeout)
+        with ExitStack() as stack:
+            iterator = request.stream.__iter__()
+            if isasyncgen(iterator):
+                stack.callback(iterator.close)
+
+            for chunk in iterator:
+                event = h11.Data(data=chunk)
+                self._send_event(event, timeout=timeout)
 
         self._send_event(h11.EndOfMessage(), timeout=timeout)
 
@@ -333,8 +340,8 @@ class HTTP11ConnectionByteStream:
             with Trace("receive_response_body", logger, self._request, kwargs):
                 with closing(
                     self._connection._receive_response_body(**kwargs)
-                ) as body:
-                    for chunk in body:
+                ) as iterator:
+                    for chunk in iterator:
                         yield chunk
         except BaseException as exc:
             # If we get an exception while streaming the response,
