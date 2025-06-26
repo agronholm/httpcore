@@ -7,8 +7,6 @@ import time
 import types
 import typing
 from collections.abc import Generator
-from contextlib import ExitStack
-from inspect import isasyncgen
 
 import h11
 
@@ -158,11 +156,7 @@ class HTTP11Connection(ConnectionInterface):
         timeout = timeouts.get("write", None)
 
         assert isinstance(request.stream, typing.Iterable)
-        with ExitStack() as stack:
-            iterator = request.stream.__iter__()
-            if isasyncgen(iterator):
-                stack.push_async_callback(iterator.close)
-
+        with safe_iterate(request.stream) as iterator:
             for chunk in iterator:
                 event = h11.Data(data=chunk)
                 self._send_event(event, timeout=timeout)

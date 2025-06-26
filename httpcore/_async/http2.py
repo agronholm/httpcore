@@ -6,8 +6,6 @@ import time
 import types
 import typing
 from collections.abc import AsyncGenerator
-from contextlib import AsyncExitStack
-from inspect import isasyncgen
 
 import h2.config
 import h2.connection
@@ -262,11 +260,7 @@ class AsyncHTTP2Connection(AsyncConnectionInterface):
             return
 
         assert isinstance(request.stream, typing.AsyncIterable)
-        async with AsyncExitStack() as stack:
-            iterator = request.stream.__aiter__()
-            if isasyncgen(iterator):
-                stack.push_async_callback(iterator.aclose)
-
+        async with safe_async_iterate(request.stream) as iterator:
             async for chunk in iterator:
                 await self._send_stream_data(request, stream_id, chunk)
 

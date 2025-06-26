@@ -5,8 +5,6 @@ import ssl
 import typing
 import urllib.parse
 from collections.abc import AsyncGenerator
-from contextlib import AsyncExitStack
-from inspect import isasyncgen
 
 from ._utils import safe_async_iterate
 
@@ -485,11 +483,7 @@ class Response:
                 "more than once."
             )
         self._stream_consumed = True
-        async with AsyncExitStack() as stack:
-            iterator = self.stream.__aiter__()
-            if isasyncgen(iterator):
-                stack.push_async_callback(iterator.aclose)
-
+        async with safe_async_iterate(self.stream) as iterator:
             async for chunk in iterator:
                 yield chunk
 
