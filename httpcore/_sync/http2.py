@@ -24,7 +24,7 @@ from .._exceptions import (
 from .._models import Origin, Request, Response
 from .._synchronization import Lock, Semaphore, ShieldCancellation
 from .._trace import Trace
-from contextlib import closing
+from .._utils import safe_iterate
 from .interfaces import ConnectionInterface
 
 logger = logging.getLogger("httpcore.http2")
@@ -265,7 +265,7 @@ class HTTP2Connection(ConnectionInterface):
         with ExitStack() as stack:
             iterator = request.stream.__iter__()
             if isasyncgen(iterator):
-                stack.callback(iterator.close)
+                stack.push_async_callback(iterator.close)
 
             for chunk in iterator:
                 self._send_stream_data(request, stream_id, chunk)
@@ -582,7 +582,7 @@ class HTTP2ConnectionByteStream:
         kwargs = {"request": self._request, "stream_id": self._stream_id}
         try:
             with Trace("receive_response_body", logger, self._request, kwargs):
-                with closing(
+                with safe_iterate(
                     self._connection._receive_response_body(
                         request=self._request, stream_id=self._stream_id
                     )

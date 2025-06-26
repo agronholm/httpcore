@@ -5,13 +5,13 @@ import sys
 import types
 import typing
 from collections.abc import Generator
-from contextlib import ExitStack
 
 from .._backends.sync import SyncBackend
 from .._backends.base import SOCKET_OPTION, NetworkBackend
 from .._exceptions import ConnectionNotAvailable, UnsupportedProtocol
 from .._models import Origin, Proxy, Request, Response
 from .._synchronization import Event, ShieldCancellation, ThreadLock
+from .._utils import safe_iterate
 from .connection import HTTPConnection
 from .interfaces import ConnectionInterface, RequestInterface
 
@@ -401,11 +401,7 @@ class PoolByteStream:
         self._closed = False
 
     def __iter__(self) -> Generator[bytes]:
-        with ExitStack() as stack:
-            iterator = self._stream.__iter__()
-            if hasattr(iterator, "close"):
-                stack.callback(iterator.close)
-
+        with safe_iterate(self._stream) as iterator:
             for chunk in iterator:
                 yield chunk
 

@@ -23,7 +23,7 @@ from .._exceptions import (
 from .._models import Origin, Request, Response
 from .._synchronization import Lock, ShieldCancellation
 from .._trace import Trace
-from contextlib import closing
+from .._utils import safe_iterate
 from .interfaces import ConnectionInterface
 
 logger = logging.getLogger("httpcore.http11")
@@ -161,7 +161,7 @@ class HTTP11Connection(ConnectionInterface):
         with ExitStack() as stack:
             iterator = request.stream.__iter__()
             if isasyncgen(iterator):
-                stack.callback(iterator.close)
+                stack.push_async_callback(iterator.close)
 
             for chunk in iterator:
                 event = h11.Data(data=chunk)
@@ -338,7 +338,7 @@ class HTTP11ConnectionByteStream:
         kwargs = {"request": self._request}
         try:
             with Trace("receive_response_body", logger, self._request, kwargs):
-                with closing(
+                with safe_iterate(
                     self._connection._receive_response_body(**kwargs)
                 ) as iterator:
                     for chunk in iterator:

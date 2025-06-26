@@ -8,7 +8,7 @@ from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack
 from inspect import isasyncgen
 
-from ._utils import aclosing
+from ._utils import safe_async_iterate
 
 # Functions for typechecking...
 
@@ -468,7 +468,7 @@ class Response:
                 "You should use 'response.read()' instead."
             )
         if not hasattr(self, "_content"):
-            async with aclosing(self.aiter_stream()) as parts:
+            async with safe_async_iterate(self.aiter_stream()) as parts:
                 self._content = b"".join([part async for part in parts])
         return self._content
 

@@ -23,7 +23,7 @@ from .._exceptions import (
 from .._models import Origin, Request, Response
 from .._synchronization import AsyncLock, AsyncShieldCancellation
 from .._trace import Trace
-from .._utils import aclosing
+from .._utils import safe_async_iterate
 from .interfaces import AsyncConnectionInterface
 
 logger = logging.getLogger("httpcore.http11")
@@ -338,7 +338,7 @@ class HTTP11ConnectionByteStream:
         kwargs = {"request": self._request}
         try:
             async with Trace("receive_response_body", logger, self._request, kwargs):
-                async with aclosing(
+                async with safe_async_iterate(
                     self._connection._receive_response_body(**kwargs)
                 ) as iterator:
                     async for chunk in iterator:
